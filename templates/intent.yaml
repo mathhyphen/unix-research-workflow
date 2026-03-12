@@ -1,0 +1,13 @@
+experiment: <name>
+branch: expl/<name>
+objective: |
+  Describe what you want to achieve (min 20 chars).
+hypothesis: |
+  Describe what you expect to happen (min 20 chars).
+success_criteria:
+  metrics:
+    - name: val_loss
+      threshold: 0.1
+      direction: lower_is_better
+constraints:
+  max_runtime_hours: 24
