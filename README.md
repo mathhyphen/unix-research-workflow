@@ -1,6 +1,6 @@
 # Unix Research Workflow
 
-一个专为 ML/DL 科研工作者设计的**意图驱动**实验管理系统，配备 **Claude Code Skill** AI 助手和 **MLflow** 可视化整合。
+一个专为 ML/DL 科研工作者设计的**意图驱动**实验管理系统，配备 **Claude Code Skill** AI 助手、**MLflow** 可视化整合和**GPU 调度**功能。
 
 ## ✨ 核心特性
 
@@ -10,6 +10,7 @@
 | 🤖 **AI 驱动** | Claude Code Skill 深度集成，语音控制实验管理 |
 | 📊 **MLflow 整合** | 训练过程可视化、模型注册、远程协作 |
 | 📝 **自动报告** | 从 metrics 自动生成 Markdown/JSON/HTML 报告 |
+| 🎮 **GPU 调度** | 自动等待空闲 GPU、多任务锁定、显存监控 |
 | 🔒 **本地优先** | 数据留在本地，敏感研究不出院 |
 | 📁 **生命周期管理** | 创建、列表、验证、对比、导出、删除 |
 
@@ -66,7 +67,19 @@ for epoch in range(epochs):
 mlflow.end_run()
 ```
 
-### 4. 生成报告
+### 4. 等待 GPU 并运行训练
+
+```bash
+# 自动等待 1 个 GPU 空闲（最少 8GB 显存），然后运行训练
+python scripts/gpu_scheduler.py --min-memory 8000 train.py --lr 0.001
+
+# 查看 GPU 状态
+python scripts/gpu_scheduler.py --list-gpus
+```
+
+### 5. 生成报告
+
+### 5. 生成报告
 
 ```bash
 # 生成 Markdown 报告
@@ -85,12 +98,13 @@ mlflow ui --backend-store-uri workspace/unet-baseline/mlruns
 Unix_workflow/
 ├── scripts/
 │   ├── __init__.py              # 包导出
-│   ├── new_exp.py               # 创建实验
+│   ├── new_exp.py               # 创建实验（修复 worktree）
 │   ├── list_exp.py              # 列出实验
 │   ├── show_exp.py              # 显示详情
 │   ├── validate_intent.py       # 验证 intent
 │   ├── log_hook.py              # JSONL 日志记录
 │   ├── mlflow_integration.py    # MLflow 整合
+│   ├── gpu_scheduler.py         # GPU 调度管理
 │   ├── summarize.py             # 生成报告
 │   ├── compare_exp.py           # 对比实验
 │   ├── export_csv.py            # 导出 CSV
@@ -108,6 +122,7 @@ Unix_workflow/
 ├── rules/
 │   └── research_protocol.md     # 研究规范
 ├── SKILL.md                     # Claude Code Skill 定义
+├── GPU_SCHEDULER.md             # GPU 调度使用指南
 ├── .gitignore                   # Git 忽略规则
 └── README.md
 ```
@@ -118,7 +133,7 @@ Unix_workflow/
 
 | 命令 | 用法 | 说明 |
 |------|------|------|
-| `new_exp.py` | `--name <name>` | 创建新实验 |
+| `new_exp.py` | `--name <name>` | 创建新实验（修复 worktree） |
 | `list_exp.py` | `[-f table\|json]` | 列出所有实验（状态码：I/M/R） |
 | `show_exp.py` | `<name>` | 显示实验详情 |
 | `validate_intent.py` | `<path>` | 验证 intent.yaml |
@@ -126,6 +141,9 @@ Unix_workflow/
 | `compare_exp.py` | `<name1> <name2> [-m metric]` | 对比多个实验 |
 | `export_csv.py` | `<name> [-o output]` | 导出为 CSV |
 | `rm_exp.py` | `<name> [--force]` | 删除实验 |
+| `gpu_scheduler.py` | `[选项] script.py` | GPU 调度管理 |
+| `gpu_scheduler.py --list-gpus` | | 查看 GPU 状态 |
+| `gpu_scheduler.py --clean-locks` | | 清理过期锁 |
 | `scan_legacy.py` | `[-t target]` | 扫描旧实验目录（迁移工具） |
 | `migrate_legacy.py` | `<source> [-n name]` | 迁移旧实验到标准结构 |
 | `cleanup_legacy.py` | `archive\|delete` | 批量归档/删除旧目录 |
