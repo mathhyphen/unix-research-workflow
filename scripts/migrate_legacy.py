@@ -8,16 +8,15 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from scripts.utils import safe_path, validate_experiment_name, format_error
+from scripts.utils import safe_path, validate_experiment_name, format_error, get_workspace_paths
 
 logger = logging.getLogger(__name__)
-
-BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 def create_migration_target(name: str) -> Path:
     """Create the migration target directory in workspace."""
-    workspace = BASE_DIR / "workspace"
+    # Use first available workspace
+    workspace = get_workspace_paths()[0]
     workspace.mkdir(exist_ok=True)
 
     exp_dir = safe_path(workspace, name)

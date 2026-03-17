@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-"""Create new research experiment directories with git worktree support."""
+"""Create intent.yaml for a new experiment.
+
+Worktree can be created anywhere - this script adapts to the location.
+Claude Code can use its default worktree location or a custom path.
+
+Usage:
+  python scripts/new_exp.py --name <experiment-name> [--workspace <path>]
+"""
 
 import argparse
 import logging
-import os
 import shutil
-import subprocess
 import sys
 from pathlib import Path
 from typing import Optional
@@ -17,171 +22,71 @@ logger = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-def is_git_repository() -> bool:
-    """Check if BASE_DIR is within a git repository.
-
-    Returns:
-        True if git repository, False otherwise.
-    """
-    try:
-        result = subprocess.run(
-            ["git", "-C", str(BASE_DIR), "rev-parse", "--git-dir"],
-            capture_output=True,
-            text=True,
-        )
-        return result.returncode == 0
-    except FileNotFoundError:
-        return False
-
-
-def worktree_exists(exp_dir: Path) -> bool:
-    """Check if a worktree already exists at the given path.
+def create_intent_yaml(name: str, workspace: Optional[Path] = None) -> Optional[Path]:
+    """Create intent.yaml for an experiment.
 
     Args:
-        exp_dir: Path to check.
+        name: Experiment name.
+        workspace: Workspace directory (default: BASE_DIR / "workspace").
 
     Returns:
-        True if worktree exists, False otherwise.
+        Path to created intent.yaml, or None if failed.
     """
-    try:
-        result = subprocess.run(
-            ["git", "worktree", "list"],
-            capture_output=True,
-            text=True,
-            cwd=str(BASE_DIR),
-        )
-        return str(exp_dir) in result.stdout
-    except Exception:
-        return False
+    print(f"Creating intent.yaml for '{name}'...")
 
+    if workspace is None:
+        workspace = BASE_DIR / "workspace"
+        # Also check .claude/worktrees/ for Claude Code native worktrees
+        # Check both project-local and home directory locations
+        for worktrees_path in [
+            BASE_DIR / ".claude" / "worktrees",  # Project-local
+            Path.home() / ".claude" / "worktrees",  # Home directory
+        ]:
+            if worktrees_path.exists() and (worktrees_path / name).exists():
+                workspace = worktrees_path
+                break
 
-def branch_exists(branch_name: str) -> bool:
-    """Check if a branch already exists.
-
-    Args:
-        branch_name: Branch name to check.
-
-    Returns:
-        True if branch exists, False otherwise.
-    """
-    try:
-        result = subprocess.run(
-            ["git", "-C", str(BASE_DIR), "rev-parse", "--verify", branch_name],
-            capture_output=True,
-            text=True,
-        )
-        return result.returncode == 0
-    except Exception:
-        return False
-
-
-def create_experiment(name: str) -> Optional[Path]:
-    """Create a new experiment directory structure.
-
-    Priority:
-    1. If git repo: Create worktree first, then directory structure
-    2. If not git repo: Just create directory structure
-
-    Args:
-        name: Experiment name (used for directory and branch names).
-
-    Returns:
-        Path to created experiment directory, or None if failed.
-
-    Raises:
-        SystemExit: If experiment already exists.
-    """
-    print(f"Creating experiment '{name}'...")
-
-    workspace = BASE_DIR / "workspace"
-    workspace.mkdir(exist_ok=True)
     exp_dir = safe_path(workspace, name)
 
-    # Check if already exists
-    if exp_dir.exists():
-        # Check if it's a valid experiment directory
-        if (exp_dir / "intent.yaml").exists() or (exp_dir / "logs").exists():
-            logger.error(f"Experiment '{name}' already exists at {exp_dir}")
-            print(f"  [ERROR] Experiment already exists!")
-            print(f"  Use 'python scripts/rm_exp.py {name}' to remove it first.")
-            sys.exit(1)
-        else:
-            # Directory exists but not a valid experiment, remove it
-            logger.warning(f"Removing non-experiment directory at {exp_dir}")
-            shutil.rmtree(exp_dir)
+    # Check if directory exists
+    if not exp_dir.exists():
+        logger.error(f"Experiment directory not found: {exp_dir}")
+        print(f"  [ERROR] Directory not found!")
+        print(f"  Please create worktree first:")
+        print(f"    Claude Code: Use native worktree command")
+        print(f"    Or: git worktree add <path> -b expl/{name}")
+        sys.exit(1)
 
-    # Check if this is a git repository
-    git_repo = is_git_repository()
+    # Check if intent already exists
+    intent_file = exp_dir / "intent.yaml"
+    if intent_file.exists():
+        logger.warning(f"intent.yaml already exists at {intent_file}")
+        print(f"  [WARN] intent.yaml already exists!")
+        print(f"  Use 'python scripts/rm_exp.py {name}' to remove first.")
+        sys.exit(1)
 
-    if git_repo:
-        # Git workflow: Create worktree FIRST, then directory structure
-        branch_name = f"expl/{name}"
+    # Create intent.yaml from template
+    copy_intent_template(exp_dir, name)
+    print(f"  [OK] Created: {intent_file}")
 
-        # Check if worktree already exists
-        if worktree_exists(exp_dir):
-            logger.warning(f"Worktree already exists at {exp_dir}")
-            print(f"  [SKIP] Git worktree: already exists")
-        else:
-            # Check if branch exists
-            branch_exists_flag = branch_exists(branch_name)
-
-            try:
-                if branch_exists_flag:
-                    # Branch exists, just create worktree pointing to it
-                    subprocess.run(
-                        ["git", "-C", str(BASE_DIR), "worktree", "add", str(exp_dir), branch_name],
-                        check=True,
-                        capture_output=True,
-                        text=True,
-                    )
-                    logger.info(f"Git worktree created for existing branch '{branch_name}'")
-                else:
-                    # Create new branch with worktree
-                    subprocess.run(
-                        ["git", "-C", str(BASE_DIR), "worktree", "add", "-b", branch_name, str(exp_dir)],
-                        check=True,
-                        capture_output=True,
-                        text=True,
-                    )
-                    logger.info(f"Git worktree created for new branch '{branch_name}'")
-
-                print(f"  [OK] Git worktree: created (branch: {branch_name})")
-
-            except subprocess.CalledProcessError as e:
-                error_msg = e.stderr.strip() if e.stderr else "unknown error"
-                logger.warning(f"Failed to create git worktree: {error_msg}")
-                print(f"  [WARN] Git worktree: failed ({error_msg})")
-                print(f"  Continuing without git integration...")
-
-            except FileNotFoundError:
-                logger.warning("Git not found - skipping worktree creation")
-                print(f"  [SKIP] Git worktree: git not found")
-
-    # Create directory structure (idempotent - safe to run after worktree)
-    exp_dir.mkdir(parents=True, exist_ok=True)
+    # Create subdirectories if they don't exist
     (exp_dir / "logs").mkdir(exist_ok=True)
     (exp_dir / "findings").mkdir(exist_ok=True)
     (exp_dir / "checkpoints").mkdir(exist_ok=True)
-    print("  [OK] Created directory structure")
+    print(f"  [OK] Created subdirectories: logs/, findings/, checkpoints/")
 
-    # Copy intent template
-    copy_intent_template(exp_dir, name)
-    print("  [OK] Copied intent template")
-
-    # Write .gitkeep files for empty directories
+    # Write .gitkeep files
     (exp_dir / "checkpoints" / ".gitkeep").write_text("")
     (exp_dir / "logs" / ".gitkeep").write_text("")
     (exp_dir / "findings" / ".gitkeep").write_text("")
 
-    logger.info(f"Experiment '{name}' initialized at {exp_dir}")
-    print(f"\nDone: {exp_dir}")
+    logger.info(f"intent.yaml created for '{name}' at {intent_file}")
+    print(f"\nDone: {intent_file}")
     print(f"\nNext steps:")
-    print(f"  1. Edit: {exp_dir}/intent.yaml")
-    print(f"  2. Validate: python scripts/validate_intent.py {exp_dir}/intent.yaml")
-    if git_repo:
-        print(f"  3. Git: cd {exp_dir} && git add . && git commit -m 'Add {name}'")
+    print(f"  1. Edit: {intent_file}")
+    print(f"  2. Validate: python scripts/validate_intent.py {intent_file}")
 
-    return exp_dir
+    return intent_file
 
 
 def copy_intent_template(exp_dir: Path, name: str) -> None:
@@ -209,21 +114,29 @@ success_criteria:
       threshold: 0.1
       direction: lower_is_better
 """
+        dest.write_text(content)
     else:
         shutil.copy(src, dest)
         content = dest.read_text()
         content = content.replace("experiment: <name>", f"experiment: {name}")
         content = content.replace("branch: expl/<name>", f"branch: expl/{name}")
-
-    dest.write_text(content)
+        dest.write_text(content)
 
 
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description="Create a new research experiment",
+        description="Create intent.yaml for a new experiment",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="Example: python new_exp.py --name ablation-study"
+        epilog="""
+Workflow:
+  1. Claude Code creates worktree (any location)
+  2. This script creates intent.yaml and subdirectories
+
+Examples:
+  python scripts/new_exp.py --name my-experiment
+  python scripts/new_exp.py -n my-experiment --workspace /custom/path
+"""
     )
     parser.add_argument(
         "--name", "-n",
@@ -232,14 +145,15 @@ def parse_args() -> argparse.Namespace:
         help="Experiment name (alphanumeric with hyphens)"
     )
     parser.add_argument(
-        "--force", "-f",
-        action="store_true",
-        help="Force create even if experiment exists (will remove existing)"
+        "--workspace", "-w",
+        type=Path,
+        default=None,
+        help="Workspace directory (default: auto-detect)"
     )
     parser.add_argument(
         "--version", "-V",
         action="version",
-        version="%(prog)s 2.0.0"
+        version="%(prog)s 3.1.0"
     )
     return parser.parse_args()
 
@@ -247,7 +161,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     """Main entry point."""
     args = parse_args()
-    create_experiment(args.name)
+    create_intent_yaml(args.name, workspace=args.workspace)
 
 
 if __name__ == "__main__":

@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 from enum import Enum
 
+from scripts.utils import get_workspace_paths
+
 logger = logging.getLogger(__name__)
 
 
@@ -49,11 +51,6 @@ class ExperimentStatus(Enum):
     REPORT_READY = "R"
 
 
-def get_workspace_path() -> Path:
-    """Return the workspace directory path."""
-    return BASE_DIR / "workspace"
-
-
 def determine_experiment_status(exp_path: Path) -> ExperimentStatus:
     """Determine experiment status based on available files.
 
@@ -73,31 +70,36 @@ def determine_experiment_status(exp_path: Path) -> ExperimentStatus:
     return ExperimentStatus.INITIALIZED
 
 
-def list_experiments() -> List[Tuple[str, ExperimentStatus]]:
+def list_experiments() -> List[Tuple[str, ExperimentStatus, str]]:
     """List all experiments in workspace.
 
     Returns:
-        List of tuples (experiment_name, status).
+        List of tuples (experiment_name, status, source_path).
     """
-    workspace = get_workspace_path()
-    if not workspace.exists():
-        return []
-
+    workspaces = get_workspace_paths()
     experiments = []
-    for exp_dir in sorted(workspace.iterdir()):
-        if not exp_dir.is_dir():
+    seen_names = set()
+
+    for workspace in workspaces:
+        if not workspace.exists():
             continue
-        status = determine_experiment_status(exp_dir)
-        experiments.append((exp_dir.name, status))
+        for exp_dir in sorted(workspace.iterdir()):
+            if not exp_dir.is_dir():
+                continue
+            if exp_dir.name in seen_names:
+                continue
+            seen_names.add(exp_dir.name)
+            status = determine_experiment_status(exp_dir)
+            experiments.append((exp_dir.name, status, str(exp_dir)))
 
     return experiments
 
 
-def print_experiments(experiments: List[Tuple[str, ExperimentStatus]], output_format: str = "table") -> None:
+def print_experiments(experiments: List[Tuple[str, ExperimentStatus, str]], output_format: str = "table") -> None:
     """Print formatted experiment list.
 
     Args:
-        experiments: List of (name, status) tuples.
+        experiments: List of (name, status, path) tuples.
         output_format: Output format ("table" or "json").
     """
     if not experiments:
@@ -108,12 +110,12 @@ def print_experiments(experiments: List[Tuple[str, ExperimentStatus]], output_fo
 
     if output_format == "json":
         import json
-        data = [{"name": name, "status": status.value} for name, status in experiments]
+        data = [{"name": name, "status": status.value, "path": path} for name, status, path in experiments]
         print(json.dumps(data, indent=2))
     else:
         print(f"{'Experiment':<25} | {'Status':<10}")
         print("-" * 38)
-        for name, status in experiments:
+        for name, status, path in experiments:
             print(f"{name:<25} | {status.value:<10}")
 
 

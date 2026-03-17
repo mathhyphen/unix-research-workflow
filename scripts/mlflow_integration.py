@@ -17,27 +17,21 @@ Usage:
     hook.end_run()
 """
 
+import logging
 import os
 import platform
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-logger = None
-
-
-def setup_logger():
-    """Setup logging for the module."""
-    global logger
-    if logger is None:
-        import logging
-        logger = logging.getLogger(__name__)
-        if not logger.handlers:
-            handler = logging.StreamHandler(sys.stderr)
-            handler.setLevel(logging.INFO)
-            formatter = logging.Formatter("[MLflow] %(message)s")
-            handler.setFormatter(formatter)
-            logger.addHandler(handler)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setLevel(logging.INFO)
+    formatter = logging.Formatter("[MLflow] %(message)s")
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
 
 
 class MlflowHook:
@@ -69,7 +63,6 @@ class MlflowHook:
             tracking_uri: MLflow tracking server URI (default: ./mlruns).
             log_to_jsonl: Also log to metrics.jsonl for Skill compatibility.
         """
-        setup_logger()
         self.workspace_path = workspace_path
         self.experiment_name = experiment_name or workspace_path.name
         self.log_to_jsonl = log_to_jsonl
@@ -338,7 +331,6 @@ def show_mlflow_info(workspace_path: Path) -> None:
     Args:
         workspace_path: Path to the experiment workspace.
     """
-    setup_logger()
     mlruns_dir = workspace_path / "mlruns"
 
     print("\n" + "=" * 60)

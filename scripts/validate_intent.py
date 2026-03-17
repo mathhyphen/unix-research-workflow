@@ -5,7 +5,9 @@ import argparse
 import re
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
+
+import yaml
 
 from scripts.utils import safe_path
 
@@ -24,21 +26,35 @@ def validate_intent(intent_path: Path) -> Optional[List[str]]:
     if not intent_path.exists():
         return [f"File not found: {intent_path}"]
 
-    content = intent_path.read_text()
     errors: List[str] = []
 
+    # Parse YAML properly
+    try:
+        content = intent_path.read_text()
+        data: Dict[str, Any] = yaml.safe_load(content)
+    except yaml.YAMLError as e:
+        return [f"Invalid YAML syntax: {e}"]
+
+    if data is None:
+        return ["Empty YAML file"]
+
     # Check branch pattern: expl/<name>
-    if not re.search(r"branch:\s+expl/[a-zA-Z0-9_-]+", content):
+    branch = data.get("branch", "")
+    if not branch or not re.match(r"^expl/[a-zA-Z0-9_-]+$", branch):
         errors.append("Branch pattern must be 'expl/<name>'")
 
-    # Check objective length (min 20 chars)
-    obj_match = re.search(r"objective:\s*\|\n\s+(.*)", content, re.DOTALL)
-    if not obj_match or len(obj_match.group(1).strip()) < 20:
+    # Check objective exists and has minimum length
+    objective = data.get("objective", "")
+    if not objective or not isinstance(objective, str):
+        errors.append("Objective field is required and must be a string")
+    elif len(objective.strip()) < 20:
         errors.append("Objective must be at least 20 characters")
 
-    # Check hypothesis length (min 20 chars)
-    hyp_match = re.search(r"hypothesis:\s*\|\n\s+(.*)", content, re.DOTALL)
-    if not hyp_match or len(hyp_match.group(1).strip()) < 20:
+    # Check hypothesis exists and has minimum length
+    hypothesis = data.get("hypothesis", "")
+    if not hypothesis or not isinstance(hypothesis, str):
+        errors.append("Hypothesis field is required and must be a string")
+    elif len(hypothesis.strip()) < 20:
         errors.append("Hypothesis must be at least 20 characters")
 
     return errors if errors else None

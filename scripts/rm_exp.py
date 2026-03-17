@@ -7,13 +7,29 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
-from scripts.utils import safe_path, validate_experiment_name
+from scripts.utils import safe_path, validate_experiment_name, get_workspace_paths
 
 logger = logging.getLogger(__name__)
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+
+def find_experiment(name: str) -> Optional[Path]:
+    """Find experiment directory across all workspaces.
+
+    Args:
+        name: Experiment name.
+
+    Returns:
+        Path to experiment directory, or None if not found.
+    """
+    for workspace in get_workspace_paths():
+        if not workspace.exists():
+            continue
+        exp_dir = safe_path(workspace, name)
+        if exp_dir.exists():
+            return exp_dir
+    return None
 
 
 def remove_experiment(name: str, force: bool = False) -> bool:
@@ -26,8 +42,7 @@ def remove_experiment(name: str, force: bool = False) -> bool:
     Returns:
         True if removed successfully, False otherwise.
     """
-    workspace = BASE_DIR / "workspace"
-    exp_dir = safe_path(workspace, name)
+    exp_dir = find_experiment(name)
 
     if not exp_dir.exists():
         print(f"Error: Experiment '{name}' not found at {exp_dir}")

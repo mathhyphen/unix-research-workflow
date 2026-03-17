@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from scripts.utils import safe_path, validate_experiment_name, format_error
+from scripts.utils import safe_path, validate_experiment_name, format_error, get_workspace_paths
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,23 @@ def configure_logging() -> None:
         stream=sys.stderr,
     )
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+
+def find_experiment(name: str) -> Optional[Path]:
+    """Find experiment directory across all workspaces.
+
+    Args:
+        name: Experiment name.
+
+    Returns:
+        Path to experiment directory, or None if not found.
+    """
+    for workspace in get_workspace_paths():
+        if not workspace.exists():
+            continue
+        exp_dir = safe_path(workspace, name)
+        if exp_dir.exists():
+            return exp_dir
+    return None
 
 
 def load_intent(intent_path: Path) -> Optional[Dict[str, Any]]:
@@ -83,10 +99,9 @@ def show_experiment(name: str) -> int:
     Returns:
         Exit code (0 for success, 1 for error).
     """
-    workspace = BASE_DIR / "workspace"
-    exp_dir = safe_path(workspace, name)
+    exp_dir = find_experiment(name)
 
-    if not exp_dir.exists():
+    if exp_dir is None:
         logger.error(format_error(
             f"Experiment '{name}' not found",
             "Use 'list_exp.py' to see available experiments"

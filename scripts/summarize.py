@@ -6,10 +6,10 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from scripts.report_factory import ReportFactory
-from scripts.utils import format_error, safe_path, validate_experiment_name
+from scripts.utils import format_error, safe_path, validate_experiment_name, get_workspace_paths
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,22 @@ def configure_logging() -> None:
     )
 
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+def find_experiment(name: str) -> Optional[Path]:
+    """Find experiment directory across all workspaces.
+
+    Args:
+        name: Experiment name.
+
+    Returns:
+        Path to experiment directory, or None if not found.
+    """
+    for workspace in get_workspace_paths():
+        if not workspace.exists():
+            continue
+        exp_dir = safe_path(workspace, name)
+        if exp_dir.exists():
+            return exp_dir
+    return None
 
 
 def load_metrics(metrics_path: Path) -> List[Dict[str, Any]]:
@@ -66,8 +81,15 @@ def compute_summary(metrics: List[Dict[str, Any]]) -> Dict[str, float]:
     counts: Dict[str, int] = {}
 
     for metric in metrics:
+        # Handle nested metrics structure from log_hook
+        if "metrics" in metric and isinstance(metric["metrics"], dict):
+            for key, value in metric["metrics"].items():
+                if isinstance(value, (int, float)):
+                    sums[key] = sums.get(key, 0.0) + float(value)
+                    counts[key] = counts.get(key, 0) + 1
+        # Also handle flat structure for backward compatibility
         for key, value in metric.items():
-            if key == "_timestamp":
+            if key in ("_timestamp", "metrics"):
                 continue
             if isinstance(value, (int, float)):
                 sums[key] = sums.get(key, 0.0) + float(value)
@@ -91,8 +113,17 @@ def summarize(
     Returns:
         Path to generated report, or None if failed.
     """
-    workspace = BASE_DIR / "workspace"
-    exp_dir = safe_path(workspace, name)
+    exp_dir = find_experiment(name)
+
+    if exp_dir is None:
+        logger.error(
+            format_error(
+                f"Experiment '{name}' not found",
+                "Check experiment name or create it first with: python scripts/new_exp.py --name " + name,
+            )
+        )
+        return None
+
     metrics_path = exp_dir / "logs" / "metrics.jsonl"
 
     # Determine output path based on format

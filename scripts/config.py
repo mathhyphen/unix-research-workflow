@@ -5,6 +5,8 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import yaml
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 DEFAULT_CONFIG: Dict[str, Any] = {
@@ -34,76 +36,20 @@ class Config:
         self._load()
 
     def _load(self) -> None:
-        """Load configuration from file."""
+        """Load configuration from file using proper YAML parser."""
         if not self.config_path.exists():
             logging.debug(f"Config file not found at {self.config_path}, using defaults")
             return
 
         try:
             content = self.config_path.read_text(encoding="utf-8")
-            self._parse_simple_yaml(content)
+            loaded_config: Dict[str, Any] = yaml.safe_load(content)
+            if loaded_config:
+                self._config.update(loaded_config)
         except (IOError, OSError, PermissionError) as e:
             logging.warning(f"Failed to read config file: {e}, using defaults")
-        except (UnicodeDecodeError, ValueError) as e:
+        except yaml.YAMLError as e:
             logging.warning(f"Failed to parse config file: {e}, using defaults")
-
-    def _parse_simple_yaml(self, content: str) -> None:
-        """Parse simple YAML-like format.
-
-        Args:
-            content: YAML content string.
-        """
-        current_list_key: Optional[str] = None
-        current_list: List[str] = []
-
-        for line in content.split("\n"):
-            stripped = line.strip()
-
-            if not stripped or stripped.startswith("#"):
-                continue
-
-            if stripped.startswith("- "):
-                if current_list_key:
-                    current_list.append(stripped[2:].strip().strip('"\'').strip(","))
-                continue
-
-            if ":" in stripped:
-                if current_list_key and current_list:
-                    self._config[current_list_key] = current_list
-                    current_list = []
-
-                key, value = stripped.split(":", 1)
-                key = key.strip()
-                value = value.strip()
-
-                if not value:
-                    current_list_key = key
-                    current_list = []
-                else:
-                    current_list_key = None
-                    self._config[key] = self._convert_value(value)
-
-        if current_list_key and current_list:
-            self._config[current_list_key] = current_list
-
-    def _convert_value(self, value: str) -> Any:
-        """Convert string value to appropriate type."""
-        if value.lower() == "true":
-            return True
-        if value.lower() == "false":
-            return False
-
-        try:
-            return int(value)
-        except ValueError:
-            pass
-
-        try:
-            return float(value)
-        except ValueError:
-            pass
-
-        return value
 
     def get(self, key: str, default: Any = None) -> Any:
         """Get configuration value."""

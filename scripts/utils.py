@@ -5,9 +5,21 @@ import argparse
 import logging
 import re
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 logger = logging.getLogger(__name__)
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def get_workspace_paths() -> List[Path]:
+    """Return list of workspace directories to search for experiments."""
+    paths = [BASE_DIR / "workspace"]
+    # Also check .claude/worktrees/ for Claude Code native worktrees
+    claude_worktrees = BASE_DIR / ".claude" / "worktrees"
+    if claude_worktrees.exists():
+        paths.append(claude_worktrees)
+    return paths
 
 
 def safe_path(base: Path, user_input: str) -> Path:

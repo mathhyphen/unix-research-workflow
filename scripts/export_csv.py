@@ -7,9 +7,9 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
-from scripts.utils import safe_path, validate_experiment_name, format_error
+from scripts.utils import safe_path, validate_experiment_name, format_error, get_workspace_paths
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,23 @@ def configure_logging() -> None:
         stream=sys.stderr,
     )
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+
+def find_experiment(name: str) -> Optional[Path]:
+    """Find experiment directory across all workspaces.
+
+    Args:
+        name: Experiment name.
+
+    Returns:
+        Path to experiment directory, or None if not found.
+    """
+    for workspace in get_workspace_paths():
+        if not workspace.exists():
+            continue
+        exp_dir = safe_path(workspace, name)
+        if exp_dir.exists():
+            return exp_dir
+    return None
 
 
 def load_metrics(metrics_path: Path) -> List[Dict[str, Any]]:
@@ -46,8 +62,11 @@ def export_to_csv(name: str, output_path: Path) -> Path:
     Returns:
         Path to exported CSV file.
     """
-    workspace = BASE_DIR / "workspace"
-    exp_dir = safe_path(workspace, name)
+    exp_dir = find_experiment(name)
+
+    if exp_dir is None:
+        raise FileNotFoundError(f"Experiment '{name}' not found")
+
     metrics_path = exp_dir / "logs" / "metrics.jsonl"
 
     if not metrics_path.exists():
@@ -117,23 +136,16 @@ def main() -> int:
 
     args = parse_args()
 
-    workspace = BASE_DIR / "workspace"
-    output_path = args.output or (workspace / args.name / "metrics.csv")
-
-    # Validate that output path is within allowed directories using safe_path
-    try:
-        # If user provided custom path, validate it's safe
-        if args.output:
-            # Use safe_path for consistent validation
-            safe_path(workspace, str(output_path.relative_to(workspace)))
-        # output_path is within workspace, proceed
-    except (ValueError, TypeError):
-        # Path might be outside workspace, reject it
+    # Find experiment directory
+    exp_dir = find_experiment(args.name)
+    if exp_dir is None:
         logger.error(format_error(
-            f"Output path '{output_path}' is outside workspace",
-            "Use a path within the workspace directory or omit --output for default"
+            f"Experiment '{args.name}' not found",
+            "Use 'list_exp.py' to see available experiments"
         ))
         return 1
+
+    output_path = args.output or (exp_dir / "metrics.csv")
 
     try:
         export_to_csv(args.name, output_path)

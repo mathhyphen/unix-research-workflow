@@ -2,7 +2,7 @@
 
 from .config import Config
 from .log_hook import LogHook
-from .new_exp import create_experiment
+from .new_exp import create_intent_yaml as create_experiment
 from .list_exp import list_experiments
 from .validate_intent import validate_intent
 from .summarize import summarize

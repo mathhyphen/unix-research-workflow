@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from scripts.utils import safe_path, validate_experiment_name, format_error
+from scripts.utils import safe_path, validate_experiment_name, format_error, get_workspace_paths
 
 logger = logging.getLogger(__name__)
 
@@ -21,11 +21,27 @@ def configure_logging() -> None:
         stream=sys.stderr,
     )
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+
+def find_experiment(name: str) -> Optional[Path]:
+    """Find experiment directory across all workspaces.
+
+    Args:
+        name: Experiment name.
+
+    Returns:
+        Path to experiment directory, or None if not found.
+    """
+    for workspace in get_workspace_paths():
+        if not workspace.exists():
+            continue
+        exp_dir = safe_path(workspace, name)
+        if exp_dir.exists():
+            return exp_dir
+    return None
 
 
 def load_final_metrics(metrics_path: Path) -> Optional[Dict[str, Any]]:
-    """Load the last non-environment metric entry."""
+    """Load the last non-environment metric entry and flatten nested metrics."""
     if not metrics_path.exists():
         return None
 
@@ -38,7 +54,19 @@ def load_final_metrics(metrics_path: Path) -> Optional[Dict[str, Any]]:
                 if metric.get("type") != "environment":
                     last_metric = metric
 
-    return last_metric
+    if last_metric is None:
+        return None
+
+    # Flatten nested metrics structure from log_hook
+    result = {}
+    if "metrics" in last_metric and isinstance(last_metric["metrics"], dict):
+        result.update(last_metric["metrics"])
+    # Also include top-level keys (except nested metrics dict)
+    for key, value in last_metric.items():
+        if key != "metrics":
+            result[key] = value
+
+    return result
 
 
 def compare_experiments(names: List[str], metric_key: str) -> int:
@@ -51,8 +79,6 @@ def compare_experiments(names: List[str], metric_key: str) -> int:
     Returns:
         Exit code (0 for success, 1 if validation fails, 2 if no comparable data).
     """
-    workspace = BASE_DIR / "workspace"
-
     # Validate all experiment names first, fail fast on invalid names
     validated_names: List[str] = []
     for name in names:
@@ -68,7 +94,11 @@ def compare_experiments(names: List[str], metric_key: str) -> int:
 
     results: List[Dict[str, Any]] = []
     for name in validated_names:
-        metrics_path = safe_path(workspace, name) / "logs" / "metrics.jsonl"
+        exp_dir = find_experiment(name)
+        if exp_dir is None:
+            logger.warning(f"Warning: Experiment '{name}' not found")
+            continue
+        metrics_path = exp_dir / "logs" / "metrics.jsonl"
         metric = load_final_metrics(metrics_path)
 
         if metric is None:
