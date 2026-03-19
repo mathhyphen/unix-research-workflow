@@ -1,77 +1,38 @@
 ---
 name: unix-research-workflow
-description: **ALWAYS use for ML experiments.** Intent-driven: git worktree → intent.yaml → validate → train (LogHook) → auto-report.
+description: Research experiment workflow for local ML/DL repositories that use git worktrees, intent.yaml, JSONL metrics, and generated reports. Use when Codex needs to create, validate, inspect, compare, summarize, or clean up experiments in this repository, especially for diffusion, flow matching, MRI, CT, or other medical imaging generation work.
 ---
 
 # Unix Research Workflow
 
-**Purpose**: Automated pipeline for ML/DL experiment management.
+Use this skill to operate the experiment workflow in this repository.
 
-## Core Principles
+## Core Workflow
 
-1. **Intent-First** — No experiment starts without `intent.yaml`
-2. **Validate Before Run** — Always validate intent before training
-3. **Log Everything** — All metrics use `LogHook` (JSONL)
-4. **Auto-Summarize** — Generate reports from logs
+1. Create or locate the experiment worktree.
+2. Create `intent.yaml` with `python scripts/new_exp.py --name <name>`.
+3. Fill the objective, hypothesis, and `success_criteria.metrics`.
+4. Validate the intent with `python scripts/validate_intent.py <path-to-intent.yaml>`.
+5. Run training with `LogHook` enabled and use `gpu_scheduler.py` when GPU scheduling matters.
+6. Generate or inspect reports with `summarize.py`, `show_exp.py`, `list_exp.py`, and `compare_exp.py`.
 
----
+## Guardrails
 
-## Workflow
+- Treat `intent.yaml` as mandatory before training.
+- Prefer the repository workflow helpers over ad hoc shell scripts when managing experiments.
+- Search for experiments in all supported workspaces: `workspace/`, project `.claude/worktrees/`, and home `.claude/worktrees/`.
+- Keep experiment artifacts local; do not commit `workspace/`, `mlruns/`, or private datasets.
+- If the task mentions MRI, CT, diffusion, flow matching, synthesis, or modality translation, read [references/medical-imaging.md](./references/medical-imaging.md) before editing the intent or evaluation plan.
 
-### 1. Create Experiment
-```bash
-git worktree add -b expl/<name> .claude/worktrees/<name>
-python scripts/new_exp.py --name <name>
-```
+## Read These References When Needed
 
-### 2. Fill Intent (min 20 chars for objective/hypothesis)
-```yaml
-experiment: <name>
-branch: expl/<name>
-objective: |
-  Describe objective (min 20 chars)
-hypothesis: |
-  Describe hypothesis (min 20 chars)
-success_criteria:
-  metrics:
-    - name: val_loss
-      threshold: 0.1
-      direction: lower_is_better
-```
+- Read [references/workflow.md](./references/workflow.md) for command-level usage, status meanings, and common troubleshooting.
+- Read [references/medical-imaging.md](./references/medical-imaging.md) for medical imaging generation conventions, suggested intent fields, and evaluation advice.
 
-### 3. Validate → Train → Report
-```bash
-python scripts/validate_intent.py .claude/worktrees/<name>/intent.yaml
-python scripts/gpu_scheduler.py --min-memory 8000 train.py
-python scripts/summarize.py <name>
-```
+## Typical Requests
 
----
-
-## Commands
-
-| Command | Usage |
-|---------|-------|
-| `new_exp.py --name <name>` | Create experiment |
-| `list_exp.py` | List experiments (I/M/R) |
-| `show_exp.py <name>` | Show details |
-| `validate_intent.py <path>` | Validate intent |
-| `summarize.py <name>` | Generate report |
-| `compare_exp.py <n1> <n2>` | Compare |
-| `export_csv.py <name>` | Export CSV |
-| `rm_exp.py <name>` | Delete |
-| `gpu_scheduler.py [opts] script.py` | Wait GPU, run |
-
-**Status**: I=Initialized, M=Metrics, R=Report
-
----
-
-## Triggers
-
-| User Says | Action |
-|-----------|--------|
-| "创建实验 xxx" | Create worktree + intent |
-| "有哪些实验" | List experiments |
-| "生成报告" | Generate report |
-| "对比 exp-001 和 002" | Compare |
-| "wait for GPU" | gpu_scheduler.py |
+- "Create an experiment for a new MRI-to-CT baseline."
+- "List my current experiments and show which ones have reports."
+- "Validate this intent before I start training."
+- "Summarize the latest diffusion run and compare it with the flow matching baseline."
+- "Clean up an experiment worktree after the report is generated."
