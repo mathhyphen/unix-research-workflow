@@ -1,77 +1,74 @@
 ---
 name: unix-research-workflow
-description: **ALWAYS use for ML experiments.** Intent-driven: git worktree → intent.yaml → validate → train (LogHook) → auto-report.
+description: Intent-driven ML experiment workflow for local research repositories. Use when Codex needs to create, validate, track, summarize, compare, or clean up experiments with this repository's scripts, especially for iterative research such as MRI or CT synthesis, diffusion models, flow matching, segmentation baselines, and other GPU-based training workflows.
 ---
 
 # Unix Research Workflow
 
-**Purpose**: Automated pipeline for ML/DL experiment management.
+Use this skill to operate the repository's experiment lifecycle instead of inventing ad hoc folders, YAML files, or reporting scripts.
 
-## Core Principles
+## Follow The Built-In Workflow
 
-1. **Intent-First** — No experiment starts without `intent.yaml`
-2. **Validate Before Run** — Always validate intent before training
-3. **Log Everything** — All metrics use `LogHook` (JSONL)
-4. **Auto-Summarize** — Generate reports from logs
+1. Create or locate the experiment worktree or workspace directory.
+2. Initialize the experiment with `python -m scripts.new_exp --name <name>`.
+3. Fill in `intent.yaml` before training.
+4. Validate with `python -m scripts.validate_intent <path-to-intent.yaml>`.
+5. Log metrics with `scripts.log_hook.LogHook` during training.
+6. Generate reports with `python -m scripts.summarize <name>`.
 
----
+Search for experiments in these roots:
+- `workspace/`
+- `.claude/worktrees/`
+- `~/.claude/worktrees/`
 
-## Workflow
+Invoke CLI modules from the repository root with `python -m scripts.<module>`.
 
-### 1. Create Experiment
-```bash
-git worktree add -b expl/<name> .claude/worktrees/<name>
-python scripts/new_exp.py --name <name>
-```
+## Use The Existing Scripts
 
-### 2. Fill Intent (min 20 chars for objective/hypothesis)
-```yaml
-experiment: <name>
-branch: expl/<name>
-objective: |
-  Describe objective (min 20 chars)
-hypothesis: |
-  Describe hypothesis (min 20 chars)
-success_criteria:
-  metrics:
-    - name: val_loss
-      threshold: 0.1
-      direction: lower_is_better
-```
+Prefer the repository scripts over handwritten one-off commands:
 
-### 3. Validate → Train → Report
-```bash
-python scripts/validate_intent.py .claude/worktrees/<name>/intent.yaml
-python scripts/gpu_scheduler.py --min-memory 8000 train.py
-python scripts/summarize.py <name>
-```
+- `scripts/new_exp.py` for experiment scaffolding
+- `scripts/list_exp.py` for experiment discovery
+- `scripts/show_exp.py <name>` for quick inspection
+- `scripts/validate_intent.py <path>` for intent checks
+- `scripts/summarize.py <name>` for report generation
+- `scripts/compare_exp.py <name1> <name2>` for comparisons
+- `scripts/export_csv.py <name>` for CSV export
+- `scripts/rm_exp.py <name>` for cleanup
+- `scripts/gpu_scheduler.py ...` for GPU waiting and launch control
 
----
+Do not replace these with new wrappers unless the user explicitly asks for a workflow change.
 
-## Commands
+## Write Intent Before Training
 
-| Command | Usage |
-|---------|-------|
-| `new_exp.py --name <name>` | Create experiment |
-| `list_exp.py` | List experiments (I/M/R) |
-| `show_exp.py <name>` | Show details |
-| `validate_intent.py <path>` | Validate intent |
-| `summarize.py <name>` | Generate report |
-| `compare_exp.py <n1> <n2>` | Compare |
-| `export_csv.py <name>` | Export CSV |
-| `rm_exp.py <name>` | Delete |
-| `gpu_scheduler.py [opts] script.py` | Wait GPU, run |
+Treat `intent.yaml` as the contract for the experiment. The validator currently requires:
 
-**Status**: I=Initialized, M=Metrics, R=Report
+- `branch`
+- `objective`
+- `hypothesis`
+- `success_criteria.metrics`
 
----
+Read `references/intent-schema.md` when you need field guidance or example intents.
 
-## Triggers
+## Keep Logging And Reports Consistent
 
-| User Says | Action |
-|-----------|--------|
-| "创建实验 xxx" | Create worktree + intent |
-| "有哪些实验" | List experiments |
-| "生成报告" | Generate report |
-| "对比 exp-001 和 002" | Compare |
-| "wait for GPU" | gpu_scheduler.py |
+- Use `LogHook` so metrics land in `logs/metrics.jsonl`.
+- Keep metrics numeric and phase-aware when possible.
+- Use `summarize.py` to generate reports instead of manually summarizing JSONL logs.
+- Prefer updating the existing reporting flow over introducing a second reporting format.
+
+## Medical Imaging Guidance
+
+For MRI, CT, diffusion, or flow-matching experiments:
+
+- Capture modality and task details in the intent, even when they are not validator-required.
+- Record dataset, split, preprocessing, spacing, normalization, and conditioning choices.
+- Make success criteria explicit for generation tasks, for example `mae`, `ssim`, `psnr`, or downstream segmentation quality.
+- Keep experiment names short and stable so comparisons and report generation remain easy.
+- Read `references/medical-imaging.md` when the user is working on modality translation, diffusion baselines, flow matching, or clinical-image-specific evaluation.
+
+## Read References Only When Needed
+
+- Read `references/workflow.md` for lifecycle, directory layout, and command selection.
+- Read `references/intent-schema.md` for required fields, recommended fields, and example intents.
+- Read `references/medical-imaging.md` for MRI, CT, and other medical imaging generation conventions.

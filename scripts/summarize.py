@@ -147,7 +147,7 @@ def summarize(
         logger.error(
             format_error(
                 f"Experiment '{name}' not found",
-                "Check experiment name or create it first with: python scripts/new_exp.py --name " + name,
+                "Check experiment name or create it first with: python -m scripts.new_exp --name " + name,
             )
         )
         return None

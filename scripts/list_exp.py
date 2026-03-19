@@ -103,7 +103,7 @@ def print_experiments(experiments: List[Tuple[str, ExperimentStatus, str]], outp
     if not experiments:
         print("No experiments found in workspace.")
         print("\nTo create your first experiment:")
-        print("  python scripts/new_exp.py --name my-first-experiment")
+        print("  python -m scripts.new_exp --name my-first-experiment")
         return
 
     if output_format == "json":

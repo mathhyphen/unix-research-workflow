@@ -1,0 +1,7 @@
+interface:
+  display_name: "Unix Research Workflow"
+  short_description: "Manage local ML experiments with intent, logs, and reports"
+  default_prompt: "Use $unix-research-workflow to manage an intent-driven ML experiment in this repository."
+
+policy:
+  allow_implicit_invocation: true
