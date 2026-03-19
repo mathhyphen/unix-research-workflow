@@ -1,69 +1,55 @@
 # Workflow Reference
 
-## Supported Workspaces
+## Lifecycle
 
-The repository resolves experiments from these locations:
+Use the repository as an intent-driven experiment manager:
+
+1. Create a git worktree or experiment directory.
+2. Run `python scripts/new_exp.py --name <name>`.
+3. Edit `intent.yaml`.
+4. Run `python scripts/validate_intent.py <path-to-intent.yaml>`.
+5. Train with `LogHook` enabled.
+6. Run `python scripts/summarize.py <name>`.
+
+## Directory Layout
+
+Experiments are searched in:
 
 - `workspace/`
-- project-local `.claude/worktrees/`
-- home `.claude/worktrees/`
+- `.claude/worktrees/`
+- `~/.claude/worktrees/`
 
-Use the existing helpers instead of hand-rolled path logic.
+Each experiment should look like:
 
-## Main Commands
-
-### Create an experiment
-
-```bash
-git worktree add -b expl/<name> .claude/worktrees/<name>
-python scripts/new_exp.py --name <name>
+```text
+<experiment>/
+|- intent.yaml
+|- logs/
+|  `- metrics.jsonl
+|- findings/
+|  `- report.md|report.json|report.html
+`- checkpoints/
 ```
 
-`new_exp.py` writes:
+## Script Selection
 
-- `intent.yaml`
-- `logs/`
-- `findings/`
-- `checkpoints/`
+- Use `new_exp.py` when creating a new experiment scaffold.
+- Use `list_exp.py` to enumerate known experiments.
+- Use `show_exp.py` to inspect one experiment quickly.
+- Use `validate_intent.py` before training starts.
+- Use `gpu_scheduler.py` when a run should wait for free GPU memory.
+- Use `summarize.py` after logging exists.
+- Use `compare_exp.py` and `export_csv.py` when the user asks for comparisons or tabular export.
+- Use `rm_exp.py` only when the user explicitly wants cleanup.
 
-### Validate the intent
+## Status Expectations
 
-```bash
-python scripts/validate_intent.py <path-to-intent.yaml>
-```
+- `I` means initialized only.
+- `M` means metrics exist.
+- `R` means at least one report artifact exists.
 
-Validation currently checks:
+## Logging Expectations
 
-- `branch`
-- `objective`
-- `hypothesis`
-- `success_criteria.metrics[*].name`
-- `success_criteria.metrics[*].threshold`
-- `success_criteria.metrics[*].direction`
-
-### Log training metrics
-
-Use `scripts/log_hook.py` from the training script and keep metric names stable across runs.
-
-### Generate reports
-
-```bash
-python scripts/summarize.py <name>
-python scripts/show_exp.py <name>
-python scripts/compare_exp.py <name1> <name2>
-```
-
-`summarize.py` emits `last`, `mean`, `min`, and `max` statistics for each logged metric and phase.
-
-## Status Codes
-
-- `I`: initialized
-- `M`: metrics present
-- `R`: report artifact present (`.md`, `.json`, or `.html`)
-
-## Common Failure Modes
-
-- Missing worktree: create the worktree before `new_exp.py`.
-- Invalid intent: fill objective, hypothesis, and success criteria before training.
-- Empty report: confirm `logs/metrics.jsonl` exists and contains metric rows.
-- Missing report status: run `summarize.py` or check `findings/`.
+- `LogHook.log_epoch()` writes flat metrics with `epoch` and `phase`.
+- Nested `{"metrics": {...}}` payloads are also supported.
+- Reports summarize numeric metrics and separate them by phase when present.

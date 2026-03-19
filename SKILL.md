@@ -1,38 +1,72 @@
 ---
 name: unix-research-workflow
-description: Research experiment workflow for local ML/DL repositories that use git worktrees, intent.yaml, JSONL metrics, and generated reports. Use when Codex needs to create, validate, inspect, compare, summarize, or clean up experiments in this repository, especially for diffusion, flow matching, MRI, CT, or other medical imaging generation work.
+description: Intent-driven ML experiment workflow for local research repositories. Use when Codex needs to create, validate, track, summarize, compare, or clean up experiments with this repository's scripts, especially for iterative research such as MRI or CT synthesis, diffusion models, flow matching, segmentation baselines, and other GPU-based training workflows.
 ---
 
 # Unix Research Workflow
 
-Use this skill to operate the experiment workflow in this repository.
+Use this skill to operate the repository's experiment lifecycle instead of inventing ad hoc folders, YAML files, or reporting scripts.
 
-## Core Workflow
+## Follow The Built-In Workflow
 
-1. Create or locate the experiment worktree.
-2. Create `intent.yaml` with `python scripts/new_exp.py --name <name>`.
-3. Fill the objective, hypothesis, and `success_criteria.metrics`.
-4. Validate the intent with `python scripts/validate_intent.py <path-to-intent.yaml>`.
-5. Run training with `LogHook` enabled and use `gpu_scheduler.py` when GPU scheduling matters.
-6. Generate or inspect reports with `summarize.py`, `show_exp.py`, `list_exp.py`, and `compare_exp.py`.
+1. Create or locate the experiment worktree or workspace directory.
+2. Initialize the experiment with `python scripts/new_exp.py --name <name>`.
+3. Fill in `intent.yaml` before training.
+4. Validate with `python scripts/validate_intent.py <path-to-intent.yaml>`.
+5. Log metrics with `scripts.log_hook.LogHook` during training.
+6. Generate reports with `python scripts/summarize.py <name>`.
 
-## Guardrails
+Search for experiments in these roots:
+- `workspace/`
+- `.claude/worktrees/`
+- `~/.claude/worktrees/`
 
-- Treat `intent.yaml` as mandatory before training.
-- Prefer the repository workflow helpers over ad hoc shell scripts when managing experiments.
-- Search for experiments in all supported workspaces: `workspace/`, project `.claude/worktrees/`, and home `.claude/worktrees/`.
-- Keep experiment artifacts local; do not commit `workspace/`, `mlruns/`, or private datasets.
-- If the task mentions MRI, CT, diffusion, flow matching, synthesis, or modality translation, read [references/medical-imaging.md](./references/medical-imaging.md) before editing the intent or evaluation plan.
+## Use The Existing Scripts
 
-## Read These References When Needed
+Prefer the repository scripts over handwritten one-off commands:
 
-- Read [references/workflow.md](./references/workflow.md) for command-level usage, status meanings, and common troubleshooting.
-- Read [references/medical-imaging.md](./references/medical-imaging.md) for medical imaging generation conventions, suggested intent fields, and evaluation advice.
+- `scripts/new_exp.py` for experiment scaffolding
+- `scripts/list_exp.py` for experiment discovery
+- `scripts/show_exp.py <name>` for quick inspection
+- `scripts/validate_intent.py <path>` for intent checks
+- `scripts/summarize.py <name>` for report generation
+- `scripts/compare_exp.py <name1> <name2>` for comparisons
+- `scripts/export_csv.py <name>` for CSV export
+- `scripts/rm_exp.py <name>` for cleanup
+- `scripts/gpu_scheduler.py ...` for GPU waiting and launch control
 
-## Typical Requests
+Do not replace these with new wrappers unless the user explicitly asks for a workflow change.
 
-- "Create an experiment for a new MRI-to-CT baseline."
-- "List my current experiments and show which ones have reports."
-- "Validate this intent before I start training."
-- "Summarize the latest diffusion run and compare it with the flow matching baseline."
-- "Clean up an experiment worktree after the report is generated."
+## Write Intent Before Training
+
+Treat `intent.yaml` as the contract for the experiment. The validator currently requires:
+
+- `branch`
+- `objective`
+- `hypothesis`
+- `success_criteria.metrics`
+
+Read `references/intent-schema.md` when you need field guidance or example intents.
+
+## Keep Logging And Reports Consistent
+
+- Use `LogHook` so metrics land in `logs/metrics.jsonl`.
+- Keep metrics numeric and phase-aware when possible.
+- Use `summarize.py` to generate reports instead of manually summarizing JSONL logs.
+- Prefer updating the existing reporting flow over introducing a second reporting format.
+
+## Medical Imaging Guidance
+
+For MRI, CT, diffusion, or flow-matching experiments:
+
+- Capture modality and task details in the intent, even when they are not validator-required.
+- Record dataset, split, preprocessing, spacing, normalization, and conditioning choices.
+- Make success criteria explicit for generation tasks, for example `mae`, `ssim`, `psnr`, or downstream segmentation quality.
+- Keep experiment names short and stable so comparisons and report generation remain easy.
+- Read `references/medical-imaging.md` when the user is working on modality translation, diffusion baselines, flow matching, or clinical-image-specific evaluation.
+
+## Read References Only When Needed
+
+- Read `references/workflow.md` for lifecycle, directory layout, and command selection.
+- Read `references/intent-schema.md` for required fields, recommended fields, and example intents.
+- Read `references/medical-imaging.md` for MRI, CT, and other medical imaging generation conventions.
