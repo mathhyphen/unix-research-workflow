@@ -22,7 +22,7 @@ modalities:
   source: MRI-T1
   target: CT
 dataset:
-  name: BraTS2020
+  name: paired-brain-mri-ct
   split: patient-level
   pairing: paired
 preprocessing:
@@ -60,6 +60,7 @@ For downstream usefulness:
 
 - Record whether training is `2D`, `2.5D`, or `3D`.
 - Record whether data is paired, unpaired, or pseudo-paired.
+- Use a dataset that actually contains the target modality for the synthesis task.
 - Keep patient-level splits explicit to avoid leakage.
 - Log the preprocessing recipe, especially registration, resampling, clipping, and normalization.
 - Prefer evaluation on clinically meaningful regions, not only whole-volume averages.

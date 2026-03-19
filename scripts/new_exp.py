@@ -5,7 +5,7 @@ Worktree can be created anywhere - this script adapts to the location.
 Claude Code can use its default worktree location or a custom path.
 
 Usage:
-  python scripts/new_exp.py --name <experiment-name> [--workspace <path>]
+  python -m scripts.new_exp --name <experiment-name> [--workspace <path>]
 """
 
 import argparse
@@ -62,7 +62,7 @@ def create_intent_yaml(name: str, workspace: Optional[Path] = None) -> Optional[
     if intent_file.exists():
         logger.warning(f"intent.yaml already exists at {intent_file}")
         print(f"  [WARN] intent.yaml already exists!")
-        print(f"  Use 'python scripts/rm_exp.py {name}' to remove first.")
+        print(f"  Use 'python -m scripts.rm_exp {name}' to remove first.")
         sys.exit(1)
 
     # Create intent.yaml from template
@@ -84,7 +84,7 @@ def create_intent_yaml(name: str, workspace: Optional[Path] = None) -> Optional[
     print(f"\nDone: {intent_file}")
     print(f"\nNext steps:")
     print(f"  1. Edit: {intent_file}")
-    print(f"  2. Validate: python scripts/validate_intent.py {intent_file}")
+    print(f"  2. Validate: python -m scripts.validate_intent {intent_file}")
 
     return intent_file
 
@@ -134,8 +134,8 @@ Workflow:
   2. This script creates intent.yaml and subdirectories
 
 Examples:
-  python scripts/new_exp.py --name my-experiment
-  python scripts/new_exp.py -n my-experiment --workspace /custom/path
+  python -m scripts.new_exp --name my-experiment
+  python -m scripts.new_exp -n my-experiment --workspace /custom/path
 """
     )
     parser.add_argument(

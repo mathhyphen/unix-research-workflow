@@ -10,16 +10,18 @@ Use this skill to operate the repository's experiment lifecycle instead of inven
 ## Follow The Built-In Workflow
 
 1. Create or locate the experiment worktree or workspace directory.
-2. Initialize the experiment with `python scripts/new_exp.py --name <name>`.
+2. Initialize the experiment with `python -m scripts.new_exp --name <name>`.
 3. Fill in `intent.yaml` before training.
-4. Validate with `python scripts/validate_intent.py <path-to-intent.yaml>`.
+4. Validate with `python -m scripts.validate_intent <path-to-intent.yaml>`.
 5. Log metrics with `scripts.log_hook.LogHook` during training.
-6. Generate reports with `python scripts/summarize.py <name>`.
+6. Generate reports with `python -m scripts.summarize <name>`.
 
 Search for experiments in these roots:
 - `workspace/`
 - `.claude/worktrees/`
 - `~/.claude/worktrees/`
+
+Invoke CLI modules from the repository root with `python -m scripts.<module>`.
 
 ## Use The Existing Scripts
 
