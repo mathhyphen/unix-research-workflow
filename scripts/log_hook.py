@@ -35,9 +35,10 @@ class LogHook:
         Args:
             data: Dictionary of metrics to log. A timestamp is added automatically.
         """
-        data["_timestamp"] = datetime.now().isoformat()
+        payload = dict(data)
+        payload["_timestamp"] = datetime.now().isoformat()
         with open(self.log_file, "a") as f:
-            f.write(json.dumps(data) + "\n")
+            f.write(json.dumps(payload) + "\n")
 
     def log_environment(self) -> None:
         """Log environment information (system, Python, etc.)."""

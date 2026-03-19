@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 from enum import Enum
 
-from scripts.utils import get_workspace_paths
+from scripts.utils import get_workspace_paths, has_report
 
 logger = logging.getLogger(__name__)
 
@@ -61,9 +61,7 @@ def determine_experiment_status(exp_path: Path) -> ExperimentStatus:
         ExperimentStatus enum value.
     """
     logs_path = exp_path / "logs"
-    findings_path = exp_path / "findings"
-
-    if (findings_path / "report.md").exists():
+    if has_report(exp_path):
         return ExperimentStatus.REPORT_READY
     if (logs_path / "metrics.jsonl").exists():
         return ExperimentStatus.HAS_METRICS

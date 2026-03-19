@@ -9,9 +9,9 @@ from typing import Any, Dict, List, Optional
 
 import yaml
 
-from scripts.utils import safe_path
+from scripts.utils import resolve_workspace_path
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+VALID_DIRECTIONS = {"lower_is_better", "higher_is_better"}
 
 
 def validate_intent(intent_path: Path) -> Optional[List[str]]:
@@ -28,9 +28,12 @@ def validate_intent(intent_path: Path) -> Optional[List[str]]:
 
     errors: List[str] = []
 
-    # Parse YAML properly
     try:
-        content = intent_path.read_text()
+        content = intent_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        return [f"Unable to read intent file: {e}"]
+
+    try:
         data: Dict[str, Any] = yaml.safe_load(content)
     except yaml.YAMLError as e:
         return [f"Invalid YAML syntax: {e}"]
@@ -57,6 +60,37 @@ def validate_intent(intent_path: Path) -> Optional[List[str]]:
     elif len(hypothesis.strip()) < 20:
         errors.append("Hypothesis must be at least 20 characters")
 
+    success_criteria = data.get("success_criteria")
+    if not isinstance(success_criteria, dict):
+        errors.append("success_criteria field is required and must be a mapping")
+    else:
+        metrics = success_criteria.get("metrics")
+        if not isinstance(metrics, list) or not metrics:
+            errors.append("success_criteria.metrics must be a non-empty list")
+        else:
+            for index, metric in enumerate(metrics, start=1):
+                prefix = f"success_criteria.metrics[{index}]"
+                if not isinstance(metric, dict):
+                    errors.append(f"{prefix} must be a mapping")
+                    continue
+
+                name = metric.get("name")
+                if not name or not isinstance(name, str):
+                    errors.append(f"{prefix}.name is required and must be a string")
+
+                threshold = metric.get("threshold")
+                if not isinstance(threshold, (int, float)):
+                    errors.append(
+                        f"{prefix}.threshold is required and must be numeric"
+                    )
+
+                direction = metric.get("direction")
+                if direction not in VALID_DIRECTIONS:
+                    valid = ", ".join(sorted(VALID_DIRECTIONS))
+                    errors.append(
+                        f"{prefix}.direction must be one of: {valid}"
+                    )
+
     return errors if errors else None
 
 
@@ -82,9 +116,8 @@ def main() -> None:
     """Main entry point."""
     args = parse_args()
 
-    # Validate the intent file path is within allowed directories
     try:
-        intent_file = safe_path(BASE_DIR, str(args.intent_file))
+        intent_file = resolve_workspace_path(args.intent_file)
     except ValueError as e:
         print(f"Error: Invalid path - {e}")
         sys.exit(1)

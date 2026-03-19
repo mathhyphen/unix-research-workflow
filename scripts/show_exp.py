@@ -9,7 +9,16 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from scripts.utils import safe_path, validate_experiment_name, format_error, get_workspace_paths
+import yaml
+
+from scripts.utils import (
+    find_experiment_path,
+    format_error,
+    get_workspace_paths,
+    has_report,
+    safe_path,
+    validate_experiment_name,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,49 +41,22 @@ def find_experiment(name: str) -> Optional[Path]:
     Returns:
         Path to experiment directory, or None if not found.
     """
-    for workspace in get_workspace_paths():
-        if not workspace.exists():
-            continue
-        exp_dir = safe_path(workspace, name)
-        if exp_dir.exists():
-            return exp_dir
-    return None
+    return find_experiment_path(name)
 
 
 def load_intent(intent_path: Path) -> Optional[Dict[str, Any]]:
-    """Load and parse intent.yaml (simple parser)."""
+    """Load and parse intent.yaml."""
     if not intent_path.exists():
         return None
 
-    content = intent_path.read_text()
-    result = {}
-    current_key = None
-    current_value = []
+    try:
+        content = intent_path.read_text(encoding="utf-8")
+        data = yaml.safe_load(content)
+    except (OSError, UnicodeDecodeError, yaml.YAMLError) as e:
+        logger.warning(f"Unable to read intent.yaml: {e}")
+        return None
 
-    for line in content.split("\n"):
-        if not line.strip():
-            continue
-
-        # Check for key: value or key: |
-        if ":" in line and not line.startswith(" "):
-            if current_key and current_value:
-                result[current_key] = "\n".join(current_value).strip()
-            parts = line.split(":", 1)
-            current_key = parts[0].strip()
-            value = parts[1].strip() if len(parts) > 1 else ""
-            if value == "|":
-                current_value = []
-            else:
-                result[current_key] = value
-                current_key = None
-                current_value = []
-        elif line.startswith("  ") and current_key:
-            current_value.append(line.strip())
-
-    if current_key and current_value:
-        result[current_key] = "\n".join(current_value).strip()
-
-    return result
+    return data if isinstance(data, dict) else None
 
 
 def count_metrics(metrics_path: Path) -> int:
@@ -129,12 +111,10 @@ def show_experiment(name: str) -> int:
     logs_path = exp_dir / "logs"
     findings_path = exp_dir / "findings"
     metrics_path = logs_path / "metrics.jsonl"
-    report_path = findings_path / "report.md"
-
     print("Status:")
     metric_count = count_metrics(metrics_path)
     print(f"  Metrics logged: {metric_count}")
-    print(f"  Report generated: {'Yes' if report_path.exists() else 'No'}")
+    print(f"  Report generated: {'Yes' if has_report(exp_dir) else 'No'}")
 
     # Git branch
     try:

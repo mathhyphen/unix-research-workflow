@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
-from scripts.utils import safe_path, validate_experiment_name, get_workspace_paths
+from scripts.utils import BASE_DIR, find_experiment_path, has_report, validate_experiment_name
 
 logger = logging.getLogger(__name__)
 
@@ -23,13 +23,7 @@ def find_experiment(name: str) -> Optional[Path]:
     Returns:
         Path to experiment directory, or None if not found.
     """
-    for workspace in get_workspace_paths():
-        if not workspace.exists():
-            continue
-        exp_dir = safe_path(workspace, name)
-        if exp_dir.exists():
-            return exp_dir
-    return None
+    return find_experiment_path(name)
 
 
 def remove_experiment(name: str, force: bool = False) -> bool:
@@ -49,8 +43,7 @@ def remove_experiment(name: str, force: bool = False) -> bool:
         return False
 
     # Safety check: don't remove experiments with reports unless forced
-    findings_path = exp_dir / "findings" / "report.md"
-    if findings_path.exists() and not force:
+    if has_report(exp_dir) and not force:
         print(f"Experiment '{name}' has a report. Use --force to remove.")
         return False
 

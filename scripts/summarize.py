@@ -6,12 +6,17 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from scripts.report_factory import ReportFactory
-from scripts.utils import format_error, safe_path, validate_experiment_name, get_workspace_paths
+from scripts.utils import (
+    find_experiment_path,
+    format_error,
+    validate_experiment_name,
+)
 
 logger = logging.getLogger(__name__)
+CONTROL_KEYS = {"_timestamp", "epoch", "metrics", "phase", "seed", "step", "type"}
 
 
 def configure_logging() -> None:
@@ -32,13 +37,7 @@ def find_experiment(name: str) -> Optional[Path]:
     Returns:
         Path to experiment directory, or None if not found.
     """
-    for workspace in get_workspace_paths():
-        if not workspace.exists():
-            continue
-        exp_dir = safe_path(workspace, name)
-        if exp_dir.exists():
-            return exp_dir
-    return None
+    return find_experiment_path(name)
 
 
 def load_metrics(metrics_path: Path) -> List[Dict[str, Any]]:
@@ -66,36 +65,65 @@ def load_metrics(metrics_path: Path) -> List[Dict[str, Any]]:
 
 
 def compute_summary(metrics: List[Dict[str, Any]]) -> Dict[str, float]:
-    """Compute mean summary for each metric key.
+    """Compute summary statistics for each metric key.
 
     Args:
         metrics: List of metric dictionaries.
 
     Returns:
-        Dictionary of metric name -> mean value.
+        Dictionary of metric name -> derived summary value.
     """
     if not metrics:
         return {}
 
-    sums: Dict[str, float] = {}
-    counts: Dict[str, int] = {}
+    stats: Dict[str, Dict[str, float]] = {}
 
     for metric in metrics:
-        # Handle nested metrics structure from log_hook
-        if "metrics" in metric and isinstance(metric["metrics"], dict):
-            for key, value in metric["metrics"].items():
-                if isinstance(value, (int, float)):
-                    sums[key] = sums.get(key, 0.0) + float(value)
-                    counts[key] = counts.get(key, 0) + 1
-        # Also handle flat structure for backward compatibility
-        for key, value in metric.items():
-            if key in ("_timestamp", "metrics"):
-                continue
-            if isinstance(value, (int, float)):
-                sums[key] = sums.get(key, 0.0) + float(value)
-                counts[key] = counts.get(key, 0) + 1
+        phase = metric.get("phase")
+        prefix = f"{phase}." if isinstance(phase, str) and phase else ""
 
-    return {key: sums[key] / counts[key] for key in sums}
+        if isinstance(metric.get("metrics"), dict):
+            metric_values = metric["metrics"]
+        else:
+            metric_values = {
+                key: value
+                for key, value in metric.items()
+                if key not in CONTROL_KEYS
+            }
+
+        for key, value in metric_values.items():
+            if not isinstance(value, (int, float)):
+                continue
+
+            summary_key = f"{prefix}{key}"
+            numeric_value = float(value)
+            current = stats.get(summary_key)
+            if current is None:
+                stats[summary_key] = {
+                    "count": 1,
+                    "sum": numeric_value,
+                    "min": numeric_value,
+                    "max": numeric_value,
+                    "last": numeric_value,
+                }
+                continue
+
+            current["count"] += 1
+            current["sum"] += numeric_value
+            current["min"] = min(current["min"], numeric_value)
+            current["max"] = max(current["max"], numeric_value)
+            current["last"] = numeric_value
+
+    summary: Dict[str, float] = {}
+    for key in sorted(stats):
+        current = stats[key]
+        mean = current["sum"] / current["count"]
+        summary[f"{key}.last"] = current["last"]
+        summary[f"{key}.mean"] = mean
+        summary[f"{key}.min"] = current["min"]
+        summary[f"{key}.max"] = current["max"]
+
+    return summary
 
 
 def summarize(

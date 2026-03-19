@@ -15,7 +15,12 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from scripts.utils import safe_path, validate_experiment_name
+from scripts.utils import (
+    find_experiment_path,
+    get_workspace_paths,
+    safe_path,
+    validate_experiment_name,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,16 +40,10 @@ def create_intent_yaml(name: str, workspace: Optional[Path] = None) -> Optional[
     print(f"Creating intent.yaml for '{name}'...")
 
     if workspace is None:
-        workspace = BASE_DIR / "workspace"
-        # Also check .claude/worktrees/ for Claude Code native worktrees
-        # Check both project-local and home directory locations
-        for worktrees_path in [
-            BASE_DIR / ".claude" / "worktrees",  # Project-local
-            Path.home() / ".claude" / "worktrees",  # Home directory
-        ]:
-            if worktrees_path.exists() and (worktrees_path / name).exists():
-                workspace = worktrees_path
-                break
+        workspace = get_workspace_paths(include_missing=True)[0]
+        existing_exp = find_experiment_path(name)
+        if existing_exp is not None:
+            workspace = existing_exp.parent
 
     exp_dir = safe_path(workspace, name)
 
@@ -52,6 +51,7 @@ def create_intent_yaml(name: str, workspace: Optional[Path] = None) -> Optional[
     if not exp_dir.exists():
         logger.error(f"Experiment directory not found: {exp_dir}")
         print(f"  [ERROR] Directory not found!")
+        print(f"  Expected experiment directory: {exp_dir}")
         print(f"  Please create worktree first:")
         print(f"    Claude Code: Use native worktree command")
         print(f"    Or: git worktree add <path> -b expl/{name}")
